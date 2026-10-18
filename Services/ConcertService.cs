@@ -14,7 +14,46 @@ namespace Event_WeatherApp.Services
             _httpClient = httpClient;
         }
 
+        public async Task<List<ConcertPin>> GetDublinConcertsAsync()
+        {
+            //filtered URL for Dublin
+            string url = $"https://app.ticketmaster.com/discovery/v2/events.json?city=Dublin&countryCode=IE&classificationName=Music&apikey={ApiKey}";
 
+            try
+            {
+                var response = await _httpClient.GetFromJsonAsync<TicketmasterAPIResponse>(url);
+                var pins = new List<ConcertPin>();
+
+                if (response?.Embedded?.Events == null) return pins;
+
+                foreach (var ev in response.Embedded.Events)
+                {
+                    var venue = ev.Embedded?.Venues?.FirstOrDefault();
+                    if (venue?.Location.Latitude != null && venue?.Location?.Longitude != null)
+                    {
+                        pins.Add(new ConcertPin
+                        {
+                            Id = ev.Id,
+                            Title = ev.Name,
+                            ArtistName = ev.Name, 
+                            VenueName = venue.Name,
+                            Latitude = double.Parse(venue.Location.Latitude),
+                            Longitude = double.Parse(venue.Location.Longitude),
+                            EventDate = ev.Dates.Start.DateTime,
+                            ImageUrl = ev.Images.FirstOrDefault()?.Url ?? string.Empty,
+                            TicketUrl = ev.Url
+                        });
+                    }
+                }
+
+                return pins;
+            } catch (Exception e)
+            {
+                //add proper logs?
+                Console.WriteLine($"Could not fetchconcerts: {e.Message}");
+                return new List<ConcertPin>();
+            }
+        }
 
 
         //internal DTO mapping structures for concert data
