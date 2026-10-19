@@ -29,7 +29,7 @@ namespace Event_WeatherApp.Services
                 foreach (var ev in response.Embedded.Events)
                 {
                     var venue = ev.Embedded?.Venues?.FirstOrDefault();
-                    if (venue?.Location.Latitude != null && venue?.Location?.Longitude != null)
+                    if (venue?.Location?.Latitude != null && venue?.Location?.Longitude != null)
                     {
                         pins.Add(new ConcertPin
                         {
@@ -60,7 +60,7 @@ namespace Event_WeatherApp.Services
 
         internal class TicketmasterAPIResponse
         {
-            public EmbeddedEvents? Embedded { get; set; }
+            [JsonPropertyName("_embedded")] public EmbeddedEvents? Embedded { get; set; }
         }
 
         internal class EmbeddedEvents
