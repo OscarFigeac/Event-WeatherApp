@@ -1,21 +1,23 @@
 ﻿using Event_WeatherApp.Models;
 using System.Text.Json.Serialization;
+using Microsoft.Extensions.Configuration;
 
 namespace Event_WeatherApp.Services
 {
     public class WeatherService
     {
         private readonly HttpClient _httpClient;
-        private const string ApiKey = "c997ef222c37bfb96e98c72d11ae15fd";
+        private readonly string _apiKey;
 
-        public WeatherService(HttpClient httpClient)
+        public WeatherService(HttpClient httpClient, IConfiguration configuration)
         {
             _httpClient = httpClient;
+            _apiKey = configuration["OpenWeatherMap:ApiKey"] ?? string.Empty;
         }
 
         public async Task<WeatherInfo?> GetWeatherForCoordinatesAsync(double lat, double lon)
         {
-            string url = $"https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&units=metric&appid={ApiKey}";
+            string url = $"https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&units=metric&appid={_apiKey}";
 
             try
             {
@@ -59,7 +61,7 @@ namespace Event_WeatherApp.Services
             [JsonPropertyName("icon")] public string Icon { get; set; } = string.Empty;
         }
 
-        public class OwWind
+        internal class OwWind //change to internal  
         {
             [JsonPropertyName("speed")] public double Speed { get; set; }
             [JsonPropertyName("gust")] public double Gust { get; set; }
