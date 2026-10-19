@@ -7,7 +7,7 @@ namespace Event_WeatherApp.Services
     public class ConcertService
     {
         private readonly HttpClient _httpClient;
-        private const string ApiKey = "https://app.ticketmaster.com/discovery/v2/";
+        private const string ApiKey = "hKrJichKFW7y3jQYVRFORX5AD13cpbqG"; 
 
         public ConcertService(HttpClient httpClient)
         {
