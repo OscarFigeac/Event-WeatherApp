@@ -1,0 +1,232 @@
+﻿@page "/"
+@rendermode InteractiveServer
+@using Event_WeatherApp.Services
+@using Event_WeatherApp.Models
+@inject ConcertService ConcertService
+@inject WeatherService WeatherService
+@inject IJSRuntime JS
+@implements IDisposable
+
+<PageTitle>Dublin Weather & Concert Radar</PageTitle>
+
+<header class="app-header">
+    <div class="header-left">
+        <span class="brand-title">Dublin Concert Weather</span>
+        <span class="header-divider">|</span>
+        <span class="provider-tag">Met Data via OpenWeather</span>
+    </div>
+    <div class="header-right">
+        @if (dublinWeather != null)
+        {
+            <div class="live-weather-badge">
+                <span class="badge-label">Dublin</span>
+                <span class="badge-temp">@Math.Round(dublinWeather.TempInCelsius)°C</span>
+                <span class="badge-cond">@dublinWeather.ConditionInText</span>
+            </div>
+        }
+        else
+        {
+            <span class="loading-text">Loading Dublin Conditions...</span>
+        }
+    </div>
+</header>
+
+<div class="main-viewport">
+    <main class="map-viewport-wrapper">
+        <div id="map" class="map-canvas"></div>
+
+        <div class="layer-rail">
+            <span class="rail-title">Layers</span>
+            <button class="rail-btn @(activeLayer == "precipitation" ? "active" : "")" @onclick='() => SwitchLayer("precipitation")'>
+                Precipitation
+            </button>
+            <button class="rail-btn @(activeLayer == "wind" ? "active" : "")" @onclick='() => SwitchLayer("wind")'>
+                Wind Speed
+            </button>
+            <button class="rail-btn @(activeLayer == "clouds" ? "active" : "")" @onclick='() => SwitchLayer("clouds")'>
+                Clouds
+            </button>
+            <button class="rail-btn @(activeLayer == "temp" ? "active" : "")" @onclick='() => SwitchLayer("temp")'>
+                Temperature
+            </button>
+        </div>
+
+        <div class="map-status-bar">
+            <div class="status-indicator">
+                <span class="pulse-ring"></span>
+                <span>Live Radar Feed</span>
+            </div>
+            <div class="active-layer-indicator">
+                Active Layer: <strong>@activeLayerName</strong>
+            </div>
+        </div>
+    </main>
+
+    <aside class="side-panel">
+        @if (selectedPin != null)
+        {
+            <div class="panel-card event-card">
+                <button class="btn-close-card" @onclick="CloseSidebar" aria-label="Close">&times;</button>
+
+                <div class="event-hero">
+                    <img src="@selectedPin.ImageUrl" alt="@selectedPin.Title" class="hero-img" />
+                    <span class="event-date-chip">@selectedPin.EventDate.ToString("ddd, dd MMM yyyy")</span>
+                </div>
+
+                <h2 class="card-event-title">@selectedPin.Title</h2>
+                <p class="venue-subtitle">@selectedPin.VenueName</p>
+
+                @if (isLoadingWeather)
+                {
+                    <div class="panel-loading">
+                        <span class="spinner-sm"></span>
+                        <span>Retrieving venue forecast...</span>
+                    </div>
+                }
+                else if (currentWeather != null)
+                {
+                    <div class="weather-metrics-container">
+                        <div class="main-temp-display">
+                            <span class="temp-val">@Math.Round(currentWeather.TempInCelsius)°</span>
+                            <div class="temp-meta">
+                                <span class="temp-unit">Celsius</span>
+                                <span class="condition-name">@currentWeather.ConditionInText</span>
+                            </div>
+                        </div>
+
+                        <div class="data-table">
+                            <div class="data-row">
+                                <span class="data-label">Wind Speed</span>
+                                <span class="data-value">@Math.Round(currentWeather.WindSpeedKmH, 1) km/h</span>
+                            </div>
+                            <div class="data-row">
+                                <span class="data-label">Wind Gusts</span>
+                                <span class="data-value">@Math.Round(currentWeather.WindGustsKmH, 1) km/h</span>
+                            </div>
+                            <div class="data-row">
+                                <span class="data-label">Rain Probability</span>
+                                <span class="data-value">@currentWeather.RainProbability%</span>
+                            </div>
+                        </div>
+
+                        <div class="layer-switch-notice">
+                            Auto-selected <strong>@activeLayerName</strong> for venue conditions.
+                        </div>
+                    </div>
+                }
+
+                <a href="@selectedPin.TicketUrl" target="_blank" class="btn-primary-action">
+                    View Tickets on Ticketmaster
+                </a>
+            </div>
+        }
+        else
+        {
+            <div class="panel-card info-card">
+                <h3 class="info-title">Concert Radar</h3>
+                <p class="info-body">Select any venue pin on the map to inspect live weather conditions, wind speeds, and rain forecasts.</p>
+
+                <div class="info-stats">
+                    <div class="stat-block">
+                        <span class="stat-num">@concertPins.Count</span>
+                        <span class="stat-desc">Upcoming Venues</span>
+                    </div>
+                    <div class="stat-block">
+                        <span class="stat-num">Live</span>
+                        <span class="stat-desc">Met Coverage</span>
+                    </div>
+                </div>
+            </div>
+        }
+    </aside>
+</div>
+
+@code {
+    private List<ConcertPin> concertPins = new();
+    private ConcertPin? selectedPin;
+    private WeatherInfo? currentWeather;
+    private WeatherInfo? dublinWeather;
+    private bool isLoadingWeather = false;
+    private bool mapInitialized = false;
+    private DotNetObjectReference<Index>? dotNetRef;
+
+    private string activeLayer = "precipitation";
+    private string activeLayerName = "Precipitation";
+
+    protected override async Task OnInitializedAsync()
+    {
+        dotNetRef = DotNetObjectReference.Create(this);
+        dublinWeather = await WeatherService.GetWeatherForCoordinatesAsync(53.3498, -6.2603);
+        concertPins = await ConcertService.GetDublinConcertsAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (concertPins.Any() && !mapInitialized)
+        {
+            mapInitialized = true;
+            await JS.InvokeVoidAsync("initConcertMap", concertPins, dotNetRef);
+        }
+    }
+
+    private async Task SwitchLayer(string layerType)
+    {
+        activeLayer = layerType;
+        activeLayerName = layerType switch
+        {
+            "precipitation" => "Precipitation",
+            "wind" => "Wind Speed",
+            "clouds" => "Cloud Cover",
+            "temp" => "Temperature",
+            _ => "Radar"
+        };
+        await JS.InvokeVoidAsync("setWeatherLayer", layerType);
+    }
+
+    [JSInvokable]
+    public async Task OnPinSelected(string pinId)
+    {
+        selectedPin = concertPins.FirstOrDefault(p => p.Id == pinId);
+        if (selectedPin != null)
+        {
+            isLoadingWeather = true;
+            StateHasChanged();
+
+            currentWeather = await WeatherService.GetWeatherForCoordinatesAsync(selectedPin.Latitude, selectedPin.Longitude);
+
+            if (currentWeather != null)
+            {
+                if (currentWeather.WindSpeedKmH > 25 || currentWeather.WindGustsKmH > 40)
+                {
+                    await SwitchLayer("wind");
+                }
+                else if (currentWeather.RainProbability > 20 || currentWeather.ConditionInText.Contains("rain", StringComparison.OrdinalIgnoreCase) || currentWeather.ConditionInText.Contains("storm", StringComparison.OrdinalIgnoreCase))
+                {
+                    await SwitchLayer("precipitation");
+                }
+                else if (currentWeather.ConditionInText.Contains("cloud", StringComparison.OrdinalIgnoreCase))
+                {
+                    await SwitchLayer("clouds");
+                }
+                else
+                {
+                    await SwitchLayer("temp");
+                }
+            }
+
+            isLoadingWeather = false;
+            StateHasChanged();
+        }
+    }
+
+    private void CloseSidebar()
+    {
+        selectedPin = null;
+        currentWeather = null;
+    }
+
+    public void Dispose()
+    {
+        dotNetRef?.Dispose();
+    }
+}
