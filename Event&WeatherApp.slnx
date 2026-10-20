@@ -1,3 +1,4 @@
 <Solution>
   <Project Path="Event&amp;WeatherApp.csproj" />
+  <Project Path="Event_WeatherApp.Tests/Event_WeatherApp.Tests.csproj" />
 </Solution>
